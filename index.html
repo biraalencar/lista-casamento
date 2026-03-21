@@ -1,0 +1,178 @@
+<!DOCTYPE html><html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Lista de Presentes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  <style>
+    body { font-family: Arial; margin: 0; background: #f5f5f5; }
+    header { background: linear-gradient(45deg,#8e44ad,#e84393); color: white; padding: 25px; text-align: center; }
+    .container { padding: 20px; max-width: 900px; margin: auto; }
+    .item {
+      background: white;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+    img { width: 120px; border-radius: 10px; }
+    .info { flex: 1; }
+    button {
+      margin-top: 6px;
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      display:block;
+      width:100%;
+    }
+    .btn { background: #8e44ad; color: white; }
+    .btn2 { background: #27ae60; color: white; }
+    .btn3 { background: #3498db; color: white; }
+    input { margin: 5px 0; padding: 8px; width: 100%; }
+    .hidden { display: none; }
+    .tag { font-size: 12px; background:#eee; padding:4px 8px; border-radius:5px; display:inline-block; margin-top:5px; }
+    .admin { background:#222; color:white; padding:15px; border-radius:10px; }
+  </style></head>
+<body><header>
+  <h1 id="titulo">Bira & Noiva 💍</h1>
+  <p id="mensagem">Sua presença é nosso maior presente ❤️</p>
+</header><div class="container">  <!-- LOGIN -->  <div id="login">
+    <h2>Admin</h2>
+    <input id="email" placeholder="Email">
+    <input id="senha" type="password" placeholder="Senha">
+    <button class="btn" onclick="login()">Entrar</button>
+  </div>  <!-- ADMIN -->  <div id="admin" class="hidden admin">
+    <h2>Painel Admin</h2><input id="nome" placeholder="Nome do item">
+<input id="img" placeholder="URL da imagem">
+<input id="qtd" type="number" placeholder="Quantidade">
+<input id="valor" type="number" placeholder="Valor (R$)">
+
+<button class="btn" onclick="addItem()">Adicionar</button>
+
+<h3>Personalização</h3>
+<input id="novoTitulo" placeholder="Nome do casal">
+<input id="novaMsg" placeholder="Mensagem">
+<button class="btn3" onclick="salvarVisual()">Salvar Visual</button>
+
+<h3>Reservas</h3>
+<div id="adminReservas"></div>
+
+  </div>  <hr>  <h2>Lista de Presentes</h2>
+  <div id="lista"></div></div><script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script><script>
+const firebaseConfig = {
+    apiKey: "AIzaSyDfUi9Ijo5b_-pL_0cbpZhbgKtH2PcRhl0",
+    authDomain: "lista-casamento-uet.firebaseapp.com",
+    projectId: "lista-casamento-uet",
+    storageBucket: "lista-casamento-uet.firebasestorage.app",
+    messagingSenderId: "373287648920",
+    appId: "1:373287648920:web:96ab44b981c4d4ffa4daed"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+function login(){
+  auth.signInWithEmailAndPassword(email.value, senha.value)
+  .then(()=> admin.classList.remove('hidden'))
+  .catch(()=> alert('Erro login'));
+}
+
+function addItem(){
+  db.collection("itens").add({
+    nome: nome.value,
+    img: img.value,
+    qtd: parseInt(qtd.value),
+    valor: parseFloat(valor.value || 0),
+    reservado: 0
+  });
+}
+
+function reservar(id, reservado, qtd){
+  let nome = prompt("Seu nome:");
+  if(!nome) return;
+
+  if(reservado < qtd){
+    db.collection("itens").doc(id).update({ reservado: reservado + 1 });
+
+    db.collection("reservas").add({
+      itemId: id,
+      nome,
+      tipo: "presencial",
+      data: new Date()
+    });
+  }
+}
+
+function pix(id, valor){
+  let nome = prompt("Seu nome:");
+  if(!nome) return;
+
+  let chave = "63992961775";
+
+  alert(`PIX: ${chave}\nValor: R$ ${valor}`);
+
+  db.collection("reservas").add({
+    itemId: id,
+    nome,
+    tipo: "pix",
+    valor,
+    data: new Date()
+  });
+}
+
+function salvarVisual(){
+  db.collection("config").doc("visual").set({
+    titulo: novoTitulo.value,
+    mensagem: novaMsg.value
+  });
+}
+
+function carregarVisual(){
+  db.collection("config").doc("visual").onSnapshot(doc=>{
+    if(doc.exists){
+      titulo.innerText = doc.data().titulo;
+      mensagem.innerText = doc.data().mensagem;
+    }
+  });
+}
+
+function render(){
+  db.collection("itens").onSnapshot(snapshot=>{
+    lista.innerHTML = '';
+
+    snapshot.forEach(doc=>{
+      let i = doc.data();
+
+      lista.innerHTML += `
+        <div class="item">
+          <img src="${i.img}">
+          <div class="info">
+            <h3>${i.nome}</h3>
+            <p><b>${i.reservado}/${i.qtd}</b></p>
+            <span class="tag">R$ ${i.valor}</span>
+
+            <button class="btn" onclick="reservar('${doc.id}', ${i.reservado}, ${i.qtd})">Reservar</button>
+            <button class="btn2" onclick="pix('${doc.id}', ${i.valor})">PIX</button>
+          </div>
+        </div>
+      `;
+    });
+  });
+
+  db.collection("reservas").onSnapshot(snapshot=>{
+    adminReservas.innerHTML = '';
+
+    snapshot.forEach(doc=>{
+      let r = doc.data();
+      adminReservas.innerHTML += `<p>${r.nome} - ${r.tipo} - R$ ${r.valor || ''}</p>`;
+    });
+  });
+}
+
+carregarVisual();
+render();
+</script></body>
+</html>
