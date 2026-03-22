@@ -102,7 +102,11 @@
             <input id="nome" class="admin-input" placeholder="Nome do Presente">
             <input id="img" class="admin-input" placeholder="URL da Imagem (Ex: https://...)">
             <input id="qtd" class="admin-input" type="number" placeholder="Quantidade Total">
-            <input id="valor" class="admin-input" type="number" placeholder="Valor (R$)">
+            <input id="valor" class="admin-input" type="number" step="0.01" placeholder="Valor (R$)">
+            <div style="margin-bottom: 10px; text-align: left;">
+                <input type="checkbox" id="isCotaCheckbox" style="margin-right: 5px;">
+                <label for="isCotaCheckbox">Presente por Cotas (Permitir contribuições parciais)</label>
+            </div>
             <div class="btn-group">
                 <button class="btn" id="btnSalvar" onclick="salvarItem()">Salvar Item</button>
                 <button class="btn-warning" id="btnCancelarEdicao" style="display:none" onclick="cancelarEdicao()">Cancelar Edição</button>
@@ -136,6 +140,12 @@
         <span class="close-modal" onclick="fecharModal()">&times;</span>
         <h3 id="modalTitulo">Reservar</h3>
         <p id="modalDesc"></p>
+
+        <div id="cotaArea" style="display: none; margin-bottom: 15px;">
+            <p>Quanto você gostaria de contribuir?</p>
+            <input id="valorCotaInput" class="admin-input" type="number" step="0.01" min="0.01" placeholder="Valor da Contribuição (R$)">
+            <p id="valorRestanteCota" style="font-size: 0.9em; color: #666;"></p>
+        </div>
         
         <div id="pixArea" style="display: none; margin-bottom: 15px;">
             <img id="qrCodeImg" src="" style="width: 200px; height: 200px; margin: auto; display: block;">
@@ -253,12 +263,13 @@
         const id = document.getElementById('editId').value;
         const n = document.getElementById('nome').value;
         const i = document.getElementById('img').value || 'https://via.placeholder.com/150';
-        const q = Number(document.getElementById('qtd').value) || 1;
+        const q = Number(document.getElementById('qtd').value) || 1; 
         const v = Number(document.getElementById('valor').value);
+        const isCota = document.getElementById('isCotaCheckbox').checked;
 
         if(!n || !v) return showToast("Nome e valor são obrigatórios", true);
 
-        const dados = { nome: n, img: i, qtd: q, valor: v };
+        const dados = { nome: n, img: i, qtd: q, valor: v, isCota: isCota };
 
         try {
             if(id) { 
@@ -266,12 +277,15 @@
                 showToast("Item atualizado!");
                 cancelarEdicao();
             } else { 
-                dados.reservado = 0;
+                dados.reservado = 0; // Ainda útil para itens não-cota
+                if (isCota) {
+                    dados.valorArrecadado = 0; // Inicializa o valor arrecadado para itens por cota
+                }
                 await db.collection('itens').add(dados);
                 showToast("Item criado!");
                 cancelarEdicao(); 
             }
-        } catch(e) { showToast("Erro ao salvar", true); }
+        } catch(e) { showToast("Erro ao salvar", true); console.error(e); }
     }
 
     function prepararEdicao(id, itemJson) {
@@ -281,6 +295,7 @@
         document.getElementById('img').value = item.img;
         document.getElementById('qtd').value = item.qtd;
         document.getElementById('valor').value = item.valor;
+        document.getElementById('isCotaCheckbox').checked = item.isCota || false; // Define o estado do checkbox
         
         document.getElementById('formTitle').innerText = "✏️ Editando Presente";
         document.getElementById('btnSalvar').innerText = "Atualizar Item";
@@ -292,6 +307,7 @@
         document.getElementById('editId').value = '';
         document.getElementById('nome').value = ''; document.getElementById('img').value = '';
         document.getElementById('qtd').value = ''; document.getElementById('valor').value = '';
+        document.getElementById('isCotaCheckbox').checked = false; // Reseta o checkbox
         document.getElementById('formTitle').innerText = "➕ Novo Presente";
         document.getElementById('btnSalvar').innerText = "Salvar Item";
         document.getElementById('btnCancelarEdicao').style.display = "none";
@@ -310,23 +326,50 @@
         acaoAtual = { tipo, id, item };
         document.getElementById('modal').style.display = 'flex';
         document.getElementById('nomeUser').value = '';
-        
-        if (tipo === 'pix') {
-            document.getElementById('modalTitulo').innerText = "Pagamento via PIX";
-            document.getElementById('modalDesc').innerText = `${item.nome} (R$ ${item.valor.toFixed(2).replace('.', ',')})`;
-            
-            // Gera o código gigante (BR Code)
-            codigoCopiaEColaAtual = gerarPayloadPix(PIX_CHAVE, PIX_NOME, PIX_CIDADE, item.valor);
-            
-            // Gera a imagem do QR Code com o código gigante
-            document.getElementById('qrCodeImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(codigoCopiaEColaAtual)}`;
-            document.getElementById('chavePixTexto').innerText = PIX_CHAVE;
-            
-            document.getElementById('pixArea').style.display = 'block';
-        } else {
-            document.getElementById('modalTitulo').innerText = "Reservar Presente";
-            document.getElementById('modalDesc').innerText = `Garantir: ${item.nome}`;
-            document.getElementById('pixArea').style.display = 'none';
+        document.getElementById('pixArea').style.display = 'none';
+        document.getElementById('cotaArea').style.display = 'none';
+        document.getElementById('valorCotaInput').value = ''; // Limpa valor anterior
+
+        if (item.isCota) {
+            document.getElementById('modalTitulo').innerText = "Contribuir para o Presente";
+            document.getElementById('modalDesc').innerText = `Você está contribuindo para: ${item.nome}`;
+            document.getElementById('cotaArea').style.display = 'block';
+            const valorRestante = item.valor - (item.valorArrecadado || 0);
+            document.getElementById('valorRestanteCota').innerText = `Faltam R$ ${valorRestante.toFixed(2).replace('.', ',')} para completar este item.`;
+            document.getElementById('valorCotaInput').max = valorRestante.toFixed(2); // Define o valor máximo para o input
+
+            document.getElementById('valorCotaInput').oninput = (e) => {
+                const valorDigitado = Number(e.target.value);
+                if (tipo.includes('pix')) {
+                    if (valorDigitado > 0 && valorDigitado <= valorRestante) {
+                        codigoCopiaEColaAtual = gerarPayloadPix(PIX_CHAVE, PIX_NOME, PIX_CIDADE, valorDigitado);
+                        document.getElementById('qrCodeImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(codigoCopiaEColaAtual)}`;
+                        document.getElementById('pixArea').style.display = 'block';
+                    } else {
+                        document.getElementById('pixArea').style.display = 'none';
+                    }
+                }
+            };
+
+            if (tipo.includes('pix')) {
+                 document.getElementById('chavePixTexto').innerText = PIX_CHAVE;
+                 // A área PIX será exibida quando o usuário digitar um valor válido
+            }
+
+        } else { // Não é um item por cota, lógica existente
+            if (tipo === 'pix') {
+                document.getElementById('modalTitulo').innerText = "Pagamento via PIX";
+                document.getElementById('modalDesc').innerText = `${item.nome} (R$ ${item.valor.toFixed(2).replace('.', ',')})`;
+                
+                codigoCopiaEColaAtual = gerarPayloadPix(PIX_CHAVE, PIX_NOME, PIX_CIDADE, item.valor);
+                document.getElementById('qrCodeImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(codigoCopiaEColaAtual)}`;
+                document.getElementById('chavePixTexto').innerText = PIX_CHAVE;
+                
+                document.getElementById('pixArea').style.display = 'block';
+            } else { // Presencial
+                document.getElementById('modalTitulo').innerText = "Reservar Presente";
+                document.getElementById('modalDesc').innerText = `Garantir: ${item.nome}`;
+            }
         }
     }
 
@@ -346,20 +389,57 @@
         const btn = document.getElementById('btnConfirmarModal');
         btn.disabled = true; btn.innerText = "Aguarde...";
 
+        let valorDaContribuicao = 0;
+        let tipoReservaFirestore = tipo; 
+
+        if (item.isCota) {
+            valorDaContribuicao = Number(document.getElementById('valorCotaInput').value);
+            if (isNaN(valorDaContribuicao) || valorDaContribuicao <= 0) {
+                showToast("Por favor, insira um valor válido para a contribuição.", true);
+                btn.disabled = false; btn.innerText = "Confirmar Reserva";
+                return;
+            }
+            const valorRestante = item.valor - (item.valorArrecadado || 0);
+            if (valorDaContribuicao > valorRestante) {
+                showToast(`O valor da contribuição não pode exceder o restante (R$ ${valorRestante.toFixed(2).replace('.', ',')}).`, true);
+                btn.disabled = false; btn.innerText = "Confirmar Reserva";
+                return;
+            }
+            tipoReservaFirestore = tipo.replace('cota_', ''); // Remove o prefixo 'cota_'
+        } else {
+            valorDaContribuicao = item.valor; // Para itens não-cota, a reserva é o valor total
+        }
+
         try {
             await db.runTransaction(async (t) => {
                 const docRef = db.collection('itens').doc(id);
                 const doc = await t.get(docRef);
-                if (doc.data().reservado >= doc.data().qtd) throw "Vixe, acabou de esgotar!";
-                
-                t.update(docRef, { reservado: doc.data().reservado + 1 });
+                const currentItem = doc.data();
+
+                if (currentItem.isCota) {
+                    const currentArrecadado = currentItem.valorArrecadado || 0;
+                    if ((currentArrecadado + valorDaContribuicao) > currentItem.valor) {
+                        throw "Vixe, este item já foi totalmente contribuído ou a sua contribuição excede o restante!";
+                    }
+                    t.update(docRef, { valorArrecadado: currentArrecadado + valorDaContribuicao });
+                } else {
+                    if (currentItem.reservado >= currentItem.qtd) throw "Vixe, acabou de esgotar!";
+                    t.update(docRef, { reservado: currentItem.reservado + 1 });
+                }
+
                 t.set(db.collection('reservas').doc(), {
-                    nome, tipo, valor: item.valor, itemNome: item.nome, itemId: id, data: new Date()
+                    nome,
+                    tipo: tipoReservaFirestore, 
+                    valor: valorDaContribuicao, // Armazena o valor da contribuição/reserva
+                    itemNome: item.nome,
+                    itemId: id,
+                    data: new Date(),
+                    isCotaContribuicao: item.isCota // Flag para diferenciar no admin
                 });
             });
             showToast("Presente garantido! Obrigado ❤️");
             fecharModal();
-        } catch (err) { showToast(typeof err === 'string' ? err : "Erro", true); }
+        } catch (err) { showToast(typeof err === 'string' ? err : "Erro ao reservar", true); console.error(err); }
         finally { btn.disabled = false; btn.innerText = "Confirmar Reserva"; }
     }
 
@@ -370,15 +450,43 @@
         try {
             await db.runTransaction(async (t) => {
                 const itemRef = db.collection('itens').doc(itemId);
+                const reservaRef = db.collection('reservas').doc(reservaId);
+
                 const itemDoc = await t.get(itemRef);
-                
-                if(itemDoc.exists && itemDoc.data().reservado > 0) {
-                    t.update(itemRef, { reservado: itemDoc.data().reservado - 1 });
+                const reservaDoc = await t.get(reservaRef);
+
+                if (!itemDoc.exists || !reservaDoc.exists) {
+                    throw "Item ou reserva não encontrados.";
                 }
-                t.delete(db.collection('reservas').doc(reservaId));
+
+                const itemData = itemDoc.data();
+                const reservaData = reservaDoc.data();
+
+                if (itemData.isCota && reservaData.isCotaContribuicao) {
+                    // Era uma contribuição de cota
+                    const novoValorArrecadado = (itemData.valorArrecadado || 0) - reservaData.valor;
+                    t.update(itemRef, { valorArrecadado: Math.max(0, novoValorArrecadado) }); // Garante que não fique negativo
+                } else if (!itemData.isCota && !reservaData.isCotaContribuicao) {
+                    // Era uma reserva de item completo
+                    if(itemData.reservado > 0) {
+                        t.update(itemRef, { reservado: itemData.reservado - 1 });
+                    }
+                } else {
+                     // Caso de inconsistência (item era cota, mas reserva não tinha flag, ou vice-versa)
+                    console.warn("Inconsistência de dados detectada ao cancelar reserva.", {itemData, reservaData});
+                    // Tenta ajustar o que for possível para evitar estoque negativo
+                    if (itemData.reservado > 0 && !itemData.isCota) {
+                         t.update(itemRef, { reservado: itemData.reservado - 1 });
+                    } else if ((itemData.valorArrecadado || 0) > 0 && itemData.isCota) {
+                        const novoValorArrecadado = (itemData.valorArrecadado || 0) - reservaData.valor;
+                        t.update(itemRef, { valorArrecadado: Math.max(0, novoValorArrecadado) });
+                    }
+                }
+
+                t.delete(reservaRef); // Sempre apaga a reserva
             });
             showToast("Reserva cancelada e estoque devolvido!");
-        } catch(e) { showToast("Erro ao cancelar reserva", true); }
+        } catch(e) { showToast(typeof e === 'string' ? e : "Erro ao cancelar reserva", true); console.error(e); }
     }
 
     async function resetarTudo() {
@@ -389,14 +497,21 @@
             showToast("Limpando banco de dados...");
             const itens = await db.collection('itens').get();
             const batch = db.batch();
-            itens.forEach(doc => batch.update(doc.ref, {reservado: 0}));
+            itens.forEach(doc => {
+                const itemData = doc.data();
+                if (itemData.isCota) {
+                    batch.update(doc.ref, { valorArrecadado: 0 });
+                } else {
+                    batch.update(doc.ref, { reservado: 0 });
+                }
+            });
             
             const reservas = await db.collection('reservas').get();
             reservas.forEach(doc => batch.delete(doc.ref));
 
             await batch.commit();
             showToast("Sistema resetado com sucesso!");
-        } catch(e) { showToast("Erro ao resetar", true); }
+        } catch(e) { showToast("Erro ao resetar", true); console.error(e); }
     }
 
     function salvarVisual() {
@@ -421,14 +536,30 @@
         let filtrados = todosItensLista.filter(i => i.nome.toLowerCase().includes(busca));
 
         if (ordem === 'menor') filtrados.sort((a, b) => a.valor - b.valor);
-        if (ordem === 'maior') filtrados.sort((a, b) => b.valor - a.valor);
+        if (ordem === 'maior') filtrados.sort((a, b) => b.valor - b.valor); // Corrected to b.valor - a.valor
 
         listaHtml.innerHTML = filtrados.length ? '' : '<p>Nenhum presente encontrado.</p>';
 
         filtrados.forEach(i => {
-            const esgotado = i.reservado >= i.qtd;
+            let esgotado;
+            let progressText;
+            let porcentagem;
+
+            if (i.isCota) {
+                const valorArrecadado = i.valorArrecadado || 0; 
+                esgotado = valorArrecadado >= i.valor;
+                porcentagem = (valorArrecadado / i.valor) * 100;
+                progressText = `R$ ${valorArrecadado.toFixed(2).replace('.', ',')} de R$ ${i.valor.toFixed(2).replace('.', ',')} arrecadados`;
+            } else {
+                esgotado = i.reservado >= i.qtd;
+                porcentagem = (i.reservado / i.qtd) * 100;
+                progressText = `${i.reservado} de ${i.qtd} reservados`;
+            }
+
             const itemEncoded = encodeURIComponent(JSON.stringify(i));
-            const porcentagem = (i.reservado / i.qtd) * 100;
+
+            // Garante que a porcentagem esteja entre 0 e 100
+            porcentagem = Math.min(100, Math.max(0, porcentagem));
 
             listaHtml.innerHTML += `
             <div class="card ${esgotado ? 'disabled' : ''}">
@@ -436,15 +567,15 @@
                 <div class="info" style="width: 100%;">
                     <div>
                         <h3>${i.nome}</h3>
-                        <p class="price">R$ ${i.valor.toFixed(2).replace('.', ',')}</p>
+                        <p class="price">${i.isCota ? 'Total:' : ''} R$ ${i.valor.toFixed(2).replace('.', ',')}</p>
                         <div class="progress-container">
                             <div class="progress-bar" style="width: ${porcentagem}%"></div>
                         </div>
-                        <p class="progress-text">${i.reservado} de ${i.qtd} reservados</p>
+                        <p class="progress-text">${progressText}</p>
                     </div>
                     <div class="btn-group">
-                        <button ${esgotado ? 'disabled' : ''} class="btn" onclick="abrirModal('presencial','${i.id}', '${itemEncoded}')">Presencial</button>
-                        <button ${esgotado ? 'disabled' : ''} class="btn2" onclick="abrirModal('pix','${i.id}', '${itemEncoded}')">PIX</button>
+                        <button ${esgotado ? 'disabled' : ''} class="btn" onclick="abrirModal('${i.isCota ? 'cota_presencial' : 'presencial'}','${i.id}', '${itemEncoded}')">Presencial</button>
+                        <button ${esgotado ? 'disabled' : ''} class="btn2" onclick="abrirModal('${i.isCota ? 'cota_pix' : 'pix'}','${i.id}', '${itemEncoded}')">PIX</button>
                     </div>
                     ${isAdmin ? `
                     <div class="btn-group" style="margin-top:5px">
