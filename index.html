@@ -20,17 +20,14 @@
 
         .container { max-width: 1100px; margin: auto; padding: 30px 20px; }
         
-        /* Filtros */
         .filtros { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
         .filtros input, .filtros select { flex: 1; min-width: 200px; padding: 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; }
 
-        /* Grid de Presentes */
         #lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
 
         .card { background: var(--card-bg); border-radius: var(--radius); padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; gap: 15px; transition: transform 0.2s; position: relative; }
         .card:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
         
-        /* CORREÇÃO DO BUG: Removido o pointer-events: none para permitir que o admin clique em Editar */
         .card.disabled { opacity: 0.75; filter: grayscale(80%); }
         .card.disabled::after { content: 'Esgotado'; position: absolute; top: 10px; right: 10px; background: var(--danger); color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; z-index: 2; }
 
@@ -39,7 +36,6 @@
         .info h3 { margin: 0 0 5px 0; font-size: 1.1em; color: var(--primary); }
         .price { font-weight: bold; color: var(--success); font-size: 1.1em; margin: 5px 0; }
 
-        /* Barra de Progresso */
         .progress-container { width: 100%; background: #eee; border-radius: 5px; height: 8px; margin: 5px 0; overflow: hidden; }
         .progress-bar { height: 100%; background: var(--success); transition: width 0.3s; }
         .progress-text { font-size: 0.8em; color: #666; margin: 0; }
@@ -47,8 +43,6 @@
         .btn-group { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
         button { padding: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.9em; flex: 1; text-align: center; }
         button:hover { opacity: 0.8; }
-        
-        /* Botões desativados para os convidados não clicarem */
         button:disabled { background: #bdc3c7 !important; color: #7f8c8d !important; cursor: not-allowed; opacity: 1; }
         
         .btn { background: var(--primary); color: #fff; }
@@ -57,7 +51,6 @@
         .btn-danger { background: var(--danger); color: white; }
         .btn-warning { background: var(--warning); color: white; }
 
-        /* Admin */
         hr { border: 0; height: 1px; background: #ddd; margin: 40px 0; }
         .admin-input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; }
         .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -66,7 +59,6 @@
 
         .reserva-item { border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
 
-        /* Modal & Toast */
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; z-index: 1000; }
         .modal-content { background: #fff; padding: 30px; border-radius: var(--radius); width: 90%; max-width: 400px; text-align: center; position: relative; }
         .close-modal { position: absolute; top: 10px; right: 15px; font-size: 1.5em; cursor: pointer; color: #888; }
@@ -146,10 +138,10 @@
         <p id="modalDesc"></p>
         
         <div id="pixArea" style="display: none; margin-bottom: 15px;">
-            <img id="qrCodeImg" src="" style="width: 200px; height: 200px; margin: auto;">
-            <p style="font-size: 0.9em; color: #666;">Chave PIX: <strong id="chavePixTexto" style="color:var(--text)"></strong></p>
-            <button class="btn3" onclick="copiarPix()">📋 Copiar Chave PIX</button>
-            <p><small>Pague o PIX e depois confirme seu nome abaixo para garantir o presente!</small></p>
+            <img id="qrCodeImg" src="" style="width: 200px; height: 200px; margin: auto; display: block;">
+            <p style="font-size: 0.9em; color: #666; margin-top: 10px;">Chave PIX: <strong id="chavePixTexto" style="color:var(--text)"></strong></p>
+            <button class="btn3" onclick="copiarPix()">📋 Copiar PIX (Copia e Cola)</button>
+            <p><small>1. Escaneie o QR Code ou copie o código.<br>2. Pague o valor.<br>3. Digite seu nome e clique em "Confirmar Reserva" para garantir seu presente na lista.</small></p>
         </div>
 
         <input id="nomeUser" class="admin-input" placeholder="Digite seu nome completo">
@@ -165,8 +157,20 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
 <script>
-    // --- CHAVE PIX ---
-    const CHAVE_PIX_RECEBEDOR = "63992961775"; 
+    // =========================================================================
+    // ⚠️ ATENÇÃO: PREENCHA SEUS DADOS AQUI PARA O QR CODE DO PIX FUNCIONAR ⚠️
+    // =========================================================================
+    
+    // 1. Sua Chave PIX. (Se for telefone, precisa colocar +55 no começo. Ex: +5511999999999)
+    const PIX_CHAVE = "seu-email-ou-telefone@pix.com"; 
+    
+    // 2. O Nome do Dono da Conta (escreva sem acentos)
+    const PIX_NOME = "Seu Nome Completo"; 
+    
+    // 3. A Cidade da Conta (escreva sem acentos. Ex: Sao Paulo)
+    const PIX_CIDADE = "Sua Cidade"; 
+    
+    // =========================================================================
 
     const firebaseConfig = {
         apiKey: "AIzaSyDfUi9Ijo5b_-pL_0cbpZhbgKtH2PcRhl0",
@@ -181,11 +185,52 @@
     let acaoAtual = null;
     let isAdmin = false;
     let todosItensLista = [];
+    let codigoCopiaEColaAtual = ""; // Guarda o código grande do banco
 
     function showToast(msg, isError = false) {
         const toast = document.getElementById('toast');
         toast.textContent = msg; toast.style.background = isError ? "var(--danger)" : "var(--success)";
         toast.style.transform = "translateX(0)"; setTimeout(() => toast.style.transform = "translateX(150%)", 3000);
+    }
+
+    // --- GERADOR DE CÓDIGO PIX PADRÃO BANCO CENTRAL (BR CODE) ---
+    function gerarPayloadPix(chave, nome, cidade, valor) {
+        function formatarCampo(id, valor) {
+            const tamanho = valor.length.toString().padStart(2, '0');
+            return `${id}${tamanho}${valor}`;
+        }
+        
+        // Remove acentos e limita os tamanhos conforme regras do Banco Central
+        const nomeLimpo = nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 25);
+        const cidadeLimpa = cidade.normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 15);
+
+        const dadosPix = [
+            formatarCampo('00', '01'),
+            formatarCampo('01', '11'),
+            formatarCampo('26', formatarCampo('00', 'br.gov.bcb.pix') + formatarCampo('01', chave)),
+            formatarCampo('52', '0000'),
+            formatarCampo('53', '986'),
+            formatarCampo('54', valor.toFixed(2)),
+            formatarCampo('58', 'BR'),
+            formatarCampo('59', nomeLimpo),
+            formatarCampo('60', cidadeLimpa),
+            formatarCampo('62', formatarCampo('05', '***')),
+            '6304' // Campo para o cálculo do CRC (autenticação)
+        ];
+
+        const payload = dadosPix.join('');
+        
+        // Algoritmo para calcular o código de verificação (CRC16)
+        let crc = 0xFFFF;
+        for (let i = 0; i < payload.length; i++) {
+            crc ^= payload.charCodeAt(i) << 8;
+            for (let j = 0; j < 8; j++) {
+                crc = (crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1;
+            }
+        }
+        const crcHex = (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+        
+        return payload + crcHex;
     }
 
     // --- AUTENTICAÇÃO ---
@@ -268,9 +313,15 @@
         
         if (tipo === 'pix') {
             document.getElementById('modalTitulo').innerText = "Pagamento via PIX";
-            document.getElementById('modalDesc').innerText = `${item.nome} (R$ ${item.valor})`;
-            document.getElementById('qrCodeImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(CHAVE_PIX_RECEBEDOR)}`;
-            document.getElementById('chavePixTexto').innerText = CHAVE_PIX_RECEBEDOR;
+            document.getElementById('modalDesc').innerText = `${item.nome} (R$ ${item.valor.toFixed(2).replace('.', ',')})`;
+            
+            // Gera o código gigante (BR Code)
+            codigoCopiaEColaAtual = gerarPayloadPix(PIX_CHAVE, PIX_NOME, PIX_CIDADE, item.valor);
+            
+            // Gera a imagem do QR Code com o código gigante
+            document.getElementById('qrCodeImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(codigoCopiaEColaAtual)}`;
+            document.getElementById('chavePixTexto').innerText = PIX_CHAVE;
+            
             document.getElementById('pixArea').style.display = 'block';
         } else {
             document.getElementById('modalTitulo').innerText = "Reservar Presente";
@@ -280,7 +331,12 @@
     }
 
     function fecharModal() { document.getElementById('modal').style.display = 'none'; }
-    function copiarPix() { navigator.clipboard.writeText(CHAVE_PIX_RECEBEDOR); showToast("Chave copiada!"); }
+    
+    function copiarPix() { 
+        // Copia o código gigante "Copia e Cola" que funciona nos apps de banco
+        navigator.clipboard.writeText(codigoCopiaEColaAtual); 
+        showToast("Código Copia e Cola copiado! Cole no seu banco."); 
+    }
 
     async function confirmar() {
         const nome = document.getElementById('nomeUser').value.trim();
