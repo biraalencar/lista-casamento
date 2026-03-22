@@ -1,135 +1,442 @@
-<!DOCTYPE html><html lang="pt-BR">
+<!DOCTYPE html>
+<html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lista Premium</title><style>
-body{font-family:Arial;margin:0;background:#f4f4f4}
-header{background:linear-gradient(45deg,#8e44ad,#e84393);color:#fff;padding:25px;text-align:center}
-.container{max-width:1000px;margin:auto;padding:20px}
-.card{background:#fff;border-radius:12px;padding:15px;margin-bottom:15px;box-shadow:0 3px 10px rgba(0,0,0,.1);display:flex;gap:15px}
-.card.disabled{opacity:.5}
-img{width:120px;border-radius:10px}
-.info{flex:1}
-button{width:100%;padding:10px;margin-top:5px;border:none;border-radius:6px;cursor:pointer}
-.btn{background:#8e44ad;color:#fff}
-.btn2{background:#27ae60;color:#fff}
-.btn3{background:#3498db;color:#fff}
-button:disabled{background:#999}
-.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:#0008;display:none;align-items:center;justify-content:center}
-.modal-content{background:#fff;padding:20px;border-radius:10px;width:300px;text-align:center}
-</style></head>
-<body><header>
-<h1 id="titulo">Bira & Noiva 💍</h1>
-<p id="mensagem">Sua presença é nosso maior presente ❤️</p>
-</header><div class="container"><h2>Lista de Presentes</h2>
-<div id="lista"></div><hr><h2>Admin</h2>
-<input id="email" placeholder="Email">
-<input id="senha" type="password" placeholder="Senha">
-<button class="btn" onclick="login()">Entrar</button><div id="admin" style="display:none">
-<h3>Novo Item</h3>
-<input id="nome" placeholder="Nome">
-<input id="img" placeholder="Imagem URL">
-<input id="qtd" type="number" placeholder="Qtd">
-<input id="valor" type="number" placeholder="Valor">
-<button class="btn" onclick="addItem()">Salvar</button><h3>Reservas</h3>
-<button class="btn3" onclick="exportarCSV()">Exportar CSV</button>
-<div id="reservas"></div><h3>Visual</h3>
-<input id="novoTitulo" placeholder="Título">
-<input id="novaMsg" placeholder="Mensagem">
-<button class="btn3" onclick="salvarVisual()">Salvar</button>
-</div></div><div id="modal" class="modal">
-<div class="modal-content">
-<h3 id="modalTitulo"></h3>
-<input id="nomeUser" placeholder="Seu nome">
-<button class="btn" onclick="confirmar()">Confirmar</button>
-</div>
-</div><script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script><script>
-const firebaseConfig={apiKey:"AIzaSyDfUi9Ijo5b_-pL_0cbpZhbgKtH2PcRhl0",authDomain:"lista-casamento-uet.firebaseapp.com",projectId:"lista-casamento-uet"}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Casamento Premium</title>
+    <style>
+        :root {
+            --primary: #8e44ad; --secondary: #e84393;
+            --success: #27ae60; --info: #3498db; --danger: #e74c3c; --warning: #f39c12;
+            --bg: #f4f6f8; --card-bg: #ffffff; --text: #2c3e50; --radius: 12px;
+        }
 
-firebase.initializeApp(firebaseConfig)
-const db=firebase.firestore()
-const auth=firebase.auth()
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; background: var(--bg); color: var(--text); }
+        
+        header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: #fff; padding: 40px 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        header h1 { margin: 0 0 10px 0; font-size: 2.5em; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
+        header p { margin: 0; font-size: 1.2em; opacity: 0.9; }
 
-let acaoAtual=null
+        .container { max-width: 1100px; margin: auto; padding: 30px 20px; }
+        
+        /* Filtros */
+        .filtros { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filtros input, .filtros select { flex: 1; min-width: 200px; padding: 12px; border-radius: 8px; border: 1px solid #ddd; outline: none; }
 
-function login(){auth.signInWithEmailAndPassword(email.value,senha.value).then(()=>admin.style.display='block')}
+        /* Grid de Presentes */
+        #lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
 
-function addItem(){db.collection('itens').add({nome:nome.value,img:img.value,qtd:+qtd.value,valor:+valor.value,reservado:0})}
+        .card { background: var(--card-bg); border-radius: var(--radius); padding: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; gap: 15px; transition: transform 0.2s; position: relative; }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+        
+        /* CORREÇÃO DO BUG: Removido o pointer-events: none para permitir que o admin clique em Editar */
+        .card.disabled { opacity: 0.75; filter: grayscale(80%); }
+        .card.disabled::after { content: 'Esgotado'; position: absolute; top: 10px; right: 10px; background: var(--danger); color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8em; z-index: 2; }
 
-function abrirModal(tipo,id,item){
-acaoAtual={tipo,id,item}
-modal.style.display='flex'
-modalTitulo.innerText=tipo==='pix'?"Pagamento via PIX":"Reservar item"
-}
+        .card img { width: 100px; height: 100px; object-fit: cover; border-radius: 10px; }
+        .info { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+        .info h3 { margin: 0 0 5px 0; font-size: 1.1em; color: var(--primary); }
+        .price { font-weight: bold; color: var(--success); font-size: 1.1em; margin: 5px 0; }
 
-function confirmar(){
-let nome=nomeUser.value
-if(!nome)return
-let {tipo,id,item}=acaoAtual
+        /* Barra de Progresso */
+        .progress-container { width: 100%; background: #eee; border-radius: 5px; height: 8px; margin: 5px 0; overflow: hidden; }
+        .progress-bar { height: 100%; background: var(--success); transition: width 0.3s; }
+        .progress-text { font-size: 0.8em; color: #666; margin: 0; }
 
-if(item.reservado>=item.qtd)return
+        .btn-group { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        button { padding: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 0.9em; flex: 1; text-align: center; }
+        button:hover { opacity: 0.8; }
+        
+        /* Botões desativados para os convidados não clicarem */
+        button:disabled { background: #bdc3c7 !important; color: #7f8c8d !important; cursor: not-allowed; opacity: 1; }
+        
+        .btn { background: var(--primary); color: #fff; }
+        .btn2 { background: var(--success); color: #fff; }
+        .btn3 { background: var(--info); color: #fff; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-warning { background: var(--warning); color: white; }
 
-// RESERVA
- db.collection('itens').doc(id).update({reservado:item.reservado+1})
+        /* Admin */
+        hr { border: 0; height: 1px; background: #ddd; margin: 40px 0; }
+        .admin-input { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; }
+        .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .admin-grid { grid-template-columns: 1fr; } }
+        .admin-panel { background: white; padding: 20px; border-radius: var(--radius); box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
 
-// REGISTRO
- db.collection('reservas').add({nome,tipo,valor:item.valor,item:item.nome,data:new Date()})
+        .reserva-item { border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
 
-// PIX QR
- if(tipo==='pix'){
-  let chave="SUA_CHAVE_PIX_AQUI"
-  let url=`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${chave}`
-  window.open(url)
- }
+        /* Modal & Toast */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-content { background: #fff; padding: 30px; border-radius: var(--radius); width: 90%; max-width: 400px; text-align: center; position: relative; }
+        .close-modal { position: absolute; top: 10px; right: 15px; font-size: 1.5em; cursor: pointer; color: #888; }
+        #toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 15px 25px; border-radius: 8px; transform: translateX(150%); transition: 0.3s; z-index: 9999; }
+    </style>
+</head>
+<body>
 
-modal.style.display='none'
-nomeUser.value=''
-}
+<header>
+    <h1 id="titulo">Bira & Noiva 💍</h1>
+    <p id="mensagem">Sua presença é nosso maior presente ❤️</p>
+</header>
 
-function salvarVisual(){db.collection('config').doc('visual').set({titulo:novoTitulo.value,mensagem:novaMsg.value})}
-
-function exportarCSV(){
- db.collection('reservas').get().then(s=>{
-  let csv='Nome,Tipo,Valor\n'
-  s.forEach(d=>{let r=d.data();csv+=`${r.nome},${r.tipo},${r.valor}\n`})
-  let blob=new Blob([csv])
-  let a=document.createElement('a')
-  a.href=URL.createObjectURL(blob)
-  a.download='reservas.csv'
-  a.click()
- })
-}
-
-function render(){
- db.collection('itens').onSnapshot(s=>{
-  lista.innerHTML=''
-  s.forEach(doc=>{
-   let i=doc.data()
-   let esgotado=i.reservado>=i.qtd
-   lista.innerHTML+=`
-   <div class="card ${esgotado?'disabled':''}">
-    <img src="${i.img}">
-    <div class="info">
-    <h3>${i.nome}</h3>
-    <p>${i.reservado}/${i.qtd}</p>
-    <p>R$ ${i.valor}</p>
-    <button ${esgotado?'disabled':''} class="btn" onclick='abrirModal("presencial","${doc.id}",${JSON.stringify(i)})'>Reservar</button>
-    <button ${esgotado?'disabled':''} class="btn2" onclick='abrirModal("pix","${doc.id}",${JSON.stringify(i)})'>PIX</button>
+<div class="container">
+    <h2>🎁 Lista de Presentes</h2>
+    
+    <div class="filtros">
+        <input type="text" id="buscaPesquisa" placeholder="🔍 Buscar presente..." onkeyup="aplicarFiltros()">
+        <select id="buscaOrdem" onchange="aplicarFiltros()">
+            <option value="padrao">Ordenar: Padrão</option>
+            <option value="menor">Menor Preço</option>
+            <option value="maior">Maior Preço</option>
+        </select>
     </div>
-   </div>`
-  })
- })
 
- db.collection('reservas').onSnapshot(s=>{
-  reservas.innerHTML=''
-  s.forEach(d=>{let r=d.data();reservas.innerHTML+=`<p>${r.nome} - ${r.tipo} - ${r.valor}</p>`})
- })
+    <div id="lista"><p>Carregando presentes...</p></div>
 
- db.collection('config').doc('visual').onSnapshot(d=>{
-  if(d.exists){titulo.innerText=d.data().titulo;mensagem.innerText=d.data().mensagem}
- })
-}
+    <hr>
+    
+    <h2>🔒 Área do Administrador</h2>
+    <div id="loginArea" class="admin-panel">
+        <input id="email" class="admin-input" type="email" placeholder="E-mail">
+        <input id="senha" class="admin-input" type="password" placeholder="Senha">
+        <button class="btn" onclick="login()">Entrar no Sistema</button>
+    </div>
 
-render()
-</script></body>
+    <div id="adminArea" style="display:none" class="admin-grid">
+        <div class="admin-panel">
+            <h3 id="formTitle">➕ Novo Presente</h3>
+            <input type="hidden" id="editId">
+            <input id="nome" class="admin-input" placeholder="Nome do Presente">
+            <input id="img" class="admin-input" placeholder="URL da Imagem (Ex: https://...)">
+            <input id="qtd" class="admin-input" type="number" placeholder="Quantidade Total">
+            <input id="valor" class="admin-input" type="number" placeholder="Valor (R$)">
+            <div class="btn-group">
+                <button class="btn" id="btnSalvar" onclick="salvarItem()">Salvar Item</button>
+                <button class="btn-warning" id="btnCancelarEdicao" style="display:none" onclick="cancelarEdicao()">Cancelar Edição</button>
+            </div>
+        </div>
+
+        <div class="admin-panel">
+            <h3>⚙️ Gestão Inteligente</h3>
+            <input id="novoTitulo" class="admin-input" placeholder="Novo Título do Site">
+            <input id="novaMsg" class="admin-input" placeholder="Nova Mensagem">
+            <button class="btn3" onclick="salvarVisual()">Atualizar Visual</button>
+            
+            <div style="background: var(--bg); padding: 15px; border-radius: 8px; margin-top: 15px;">
+                <h4 style="margin: 0 0 10px 0;">💰 Total Arrecadado: <span id="totalArrecadado" style="color: var(--success)">R$ 0,00</span></h4>
+                <div class="btn-group">
+                    <button class="btn2" onclick="exportarCSV()">📥 Baixar CSV</button>
+                    <button class="btn-danger" onclick="resetarTudo()">⚠️ Zerar Tudo</button>
+                </div>
+            </div>
+            
+            <h4 style="margin-top: 15px;">Últimas Reservas:</h4>
+            <div id="reservas" style="max-height: 200px; overflow-y: auto;"></div>
+        </div>
+        <button class="btn-danger" style="grid-column: 1 / -1;" onclick="logout()">Sair do Sistema</button>
+    </div>
+</div>
+
+<!-- Modal Convidados -->
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="fecharModal()">&times;</span>
+        <h3 id="modalTitulo">Reservar</h3>
+        <p id="modalDesc"></p>
+        
+        <div id="pixArea" style="display: none; margin-bottom: 15px;">
+            <img id="qrCodeImg" src="" style="width: 200px; height: 200px; margin: auto;">
+            <p style="font-size: 0.9em; color: #666;">Chave PIX: <strong id="chavePixTexto" style="color:var(--text)"></strong></p>
+            <button class="btn3" onclick="copiarPix()">📋 Copiar Chave PIX</button>
+            <p><small>Pague o PIX e depois confirme seu nome abaixo para garantir o presente!</small></p>
+        </div>
+
+        <input id="nomeUser" class="admin-input" placeholder="Digite seu nome completo">
+        <button class="btn" onclick="confirmar()" id="btnConfirmarModal">Confirmar Reserva</button>
+    </div>
+</div>
+
+<div id="toast">Notificação</div>
+
+<!-- Firebase Config -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+<script>
+    // --- CHAVE PIX ---
+    const CHAVE_PIX_RECEBEDOR = "seu-email-ou-telefone@pix.com"; 
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyDfUi9Ijo5b_-pL_0cbpZhbgKtH2PcRhl0",
+        authDomain: "lista-casamento-uet.firebaseapp.com",
+        projectId: "lista-casamento-uet"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+
+    let acaoAtual = null;
+    let isAdmin = false;
+    let todosItensLista = [];
+
+    function showToast(msg, isError = false) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg; toast.style.background = isError ? "var(--danger)" : "var(--success)";
+        toast.style.transform = "translateX(0)"; setTimeout(() => toast.style.transform = "translateX(150%)", 3000);
+    }
+
+    // --- AUTENTICAÇÃO ---
+    auth.onAuthStateChanged(user => {
+        isAdmin = !!user;
+        document.getElementById('loginArea').style.display = isAdmin ? 'none' : 'block';
+        document.getElementById('adminArea').style.display = isAdmin ? 'grid' : 'none';
+        aplicarFiltros(); 
+    });
+
+    function login() {
+        const e = document.getElementById('email').value, s = document.getElementById('senha').value;
+        if(!e || !s) return showToast("Preencha email e senha", true);
+        auth.signInWithEmailAndPassword(e, s).then(()=> showToast("Logado com sucesso!")).catch(() => showToast("Acesso negado", true));
+    }
+    function logout() { auth.signOut(); }
+
+    // --- CRUD ITENS (ADMIN) ---
+    async function salvarItem() {
+        const id = document.getElementById('editId').value;
+        const n = document.getElementById('nome').value;
+        const i = document.getElementById('img').value || 'https://via.placeholder.com/150';
+        const q = Number(document.getElementById('qtd').value) || 1;
+        const v = Number(document.getElementById('valor').value);
+
+        if(!n || !v) return showToast("Nome e valor são obrigatórios", true);
+
+        const dados = { nome: n, img: i, qtd: q, valor: v };
+
+        try {
+            if(id) { 
+                await db.collection('itens').doc(id).update(dados);
+                showToast("Item atualizado!");
+                cancelarEdicao();
+            } else { 
+                dados.reservado = 0;
+                await db.collection('itens').add(dados);
+                showToast("Item criado!");
+                cancelarEdicao(); 
+            }
+        } catch(e) { showToast("Erro ao salvar", true); }
+    }
+
+    function prepararEdicao(id, itemJson) {
+        const item = JSON.parse(decodeURIComponent(itemJson));
+        document.getElementById('editId').value = id;
+        document.getElementById('nome').value = item.nome;
+        document.getElementById('img').value = item.img;
+        document.getElementById('qtd').value = item.qtd;
+        document.getElementById('valor').value = item.valor;
+        
+        document.getElementById('formTitle').innerText = "✏️ Editando Presente";
+        document.getElementById('btnSalvar').innerText = "Atualizar Item";
+        document.getElementById('btnCancelarEdicao').style.display = "block";
+        window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+    }
+
+    function cancelarEdicao() {
+        document.getElementById('editId').value = '';
+        document.getElementById('nome').value = ''; document.getElementById('img').value = '';
+        document.getElementById('qtd').value = ''; document.getElementById('valor').value = '';
+        document.getElementById('formTitle').innerText = "➕ Novo Presente";
+        document.getElementById('btnSalvar').innerText = "Salvar Item";
+        document.getElementById('btnCancelarEdicao').style.display = "none";
+    }
+
+    async function deletarItem(id) {
+        if(confirm("Apagar presente? (As reservas dele não serão apagadas automaticamente)")) {
+            await db.collection('itens').doc(id).delete();
+            showToast("Item deletado!");
+        }
+    }
+
+    // --- RESERVAS (CLIENTE) ---
+    function abrirModal(tipo, id, itemJson) {
+        const item = JSON.parse(decodeURIComponent(itemJson));
+        acaoAtual = { tipo, id, item };
+        document.getElementById('modal').style.display = 'flex';
+        document.getElementById('nomeUser').value = '';
+        
+        if (tipo === 'pix') {
+            document.getElementById('modalTitulo').innerText = "Pagamento via PIX";
+            document.getElementById('modalDesc').innerText = `${item.nome} (R$ ${item.valor})`;
+            document.getElementById('qrCodeImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(CHAVE_PIX_RECEBEDOR)}`;
+            document.getElementById('chavePixTexto').innerText = CHAVE_PIX_RECEBEDOR;
+            document.getElementById('pixArea').style.display = 'block';
+        } else {
+            document.getElementById('modalTitulo').innerText = "Reservar Presente";
+            document.getElementById('modalDesc').innerText = `Garantir: ${item.nome}`;
+            document.getElementById('pixArea').style.display = 'none';
+        }
+    }
+
+    function fecharModal() { document.getElementById('modal').style.display = 'none'; }
+    function copiarPix() { navigator.clipboard.writeText(CHAVE_PIX_RECEBEDOR); showToast("Chave copiada!"); }
+
+    async function confirmar() {
+        const nome = document.getElementById('nomeUser').value.trim();
+        if(!nome) return showToast("Digite seu nome", true);
+        
+        const { tipo, id, item } = acaoAtual;
+        const btn = document.getElementById('btnConfirmarModal');
+        btn.disabled = true; btn.innerText = "Aguarde...";
+
+        try {
+            await db.runTransaction(async (t) => {
+                const docRef = db.collection('itens').doc(id);
+                const doc = await t.get(docRef);
+                if (doc.data().reservado >= doc.data().qtd) throw "Vixe, acabou de esgotar!";
+                
+                t.update(docRef, { reservado: doc.data().reservado + 1 });
+                t.set(db.collection('reservas').doc(), {
+                    nome, tipo, valor: item.valor, itemNome: item.nome, itemId: id, data: new Date()
+                });
+            });
+            showToast("Presente garantido! Obrigado ❤️");
+            fecharModal();
+        } catch (err) { showToast(typeof err === 'string' ? err : "Erro", true); }
+        finally { btn.disabled = false; btn.innerText = "Confirmar Reserva"; }
+    }
+
+    // --- GESTÃO DE RESERVAS ---
+    async function cancelarReserva(reservaId, itemId, nomeItem) {
+        if(!confirm(`Deseja cancelar esta reserva de "${nomeItem}" e devolver o item para a lista?`)) return;
+        
+        try {
+            await db.runTransaction(async (t) => {
+                const itemRef = db.collection('itens').doc(itemId);
+                const itemDoc = await t.get(itemRef);
+                
+                if(itemDoc.exists && itemDoc.data().reservado > 0) {
+                    t.update(itemRef, { reservado: itemDoc.data().reservado - 1 });
+                }
+                t.delete(db.collection('reservas').doc(reservaId));
+            });
+            showToast("Reserva cancelada e estoque devolvido!");
+        } catch(e) { showToast("Erro ao cancelar reserva", true); }
+    }
+
+    async function resetarTudo() {
+        const palavra = prompt("ATENÇÃO: Isso apagará TODAS as reservas e voltará todos os estoques para zero.\n\nDigite ZERAR para confirmar:");
+        if(palavra !== "ZERAR") return showToast("Ação cancelada.", true);
+
+        try {
+            showToast("Limpando banco de dados...");
+            const itens = await db.collection('itens').get();
+            const batch = db.batch();
+            itens.forEach(doc => batch.update(doc.ref, {reservado: 0}));
+            
+            const reservas = await db.collection('reservas').get();
+            reservas.forEach(doc => batch.delete(doc.ref));
+
+            await batch.commit();
+            showToast("Sistema resetado com sucesso!");
+        } catch(e) { showToast("Erro ao resetar", true); }
+    }
+
+    function salvarVisual() {
+        db.collection('config').doc('visual').set({
+            titulo: document.getElementById('novoTitulo').value || document.getElementById('titulo').innerText,
+            mensagem: document.getElementById('novaMsg').value || document.getElementById('mensagem').innerText
+        });
+        showToast("Visual salvo!");
+    }
+
+    // --- RENDERIZAÇÃO E FILTROS ---
+    db.collection('itens').onSnapshot(s => {
+        todosItensLista = s.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        aplicarFiltros();
+    });
+
+    function aplicarFiltros() {
+        const busca = document.getElementById('buscaPesquisa').value.toLowerCase();
+        const ordem = document.getElementById('buscaOrdem').value;
+        const listaHtml = document.getElementById('lista');
+
+        let filtrados = todosItensLista.filter(i => i.nome.toLowerCase().includes(busca));
+
+        if (ordem === 'menor') filtrados.sort((a, b) => a.valor - b.valor);
+        if (ordem === 'maior') filtrados.sort((a, b) => b.valor - a.valor);
+
+        listaHtml.innerHTML = filtrados.length ? '' : '<p>Nenhum presente encontrado.</p>';
+
+        filtrados.forEach(i => {
+            const esgotado = i.reservado >= i.qtd;
+            const itemEncoded = encodeURIComponent(JSON.stringify(i));
+            const porcentagem = (i.reservado / i.qtd) * 100;
+
+            listaHtml.innerHTML += `
+            <div class="card ${esgotado ? 'disabled' : ''}">
+                <img src="${i.img}" onerror="this.src='https://via.placeholder.com/150'">
+                <div class="info" style="width: 100%;">
+                    <div>
+                        <h3>${i.nome}</h3>
+                        <p class="price">R$ ${i.valor.toFixed(2).replace('.', ',')}</p>
+                        <div class="progress-container">
+                            <div class="progress-bar" style="width: ${porcentagem}%"></div>
+                        </div>
+                        <p class="progress-text">${i.reservado} de ${i.qtd} reservados</p>
+                    </div>
+                    <div class="btn-group">
+                        <button ${esgotado ? 'disabled' : ''} class="btn" onclick="abrirModal('presencial','${i.id}', '${itemEncoded}')">Presencial</button>
+                        <button ${esgotado ? 'disabled' : ''} class="btn2" onclick="abrirModal('pix','${i.id}', '${itemEncoded}')">PIX</button>
+                    </div>
+                    ${isAdmin ? `
+                    <div class="btn-group" style="margin-top:5px">
+                        <button class="btn3" onclick="prepararEdicao('${i.id}', '${itemEncoded}')">✏️ Editar</button>
+                        <button class="btn-danger" onclick="deletarItem('${i.id}')">🗑️ Apagar</button>
+                    </div>` : ''}
+                </div>
+            </div>`;
+        });
+    }
+
+    db.collection('reservas').orderBy('data', 'desc').onSnapshot(s => {
+        const divReservas = document.getElementById('reservas');
+        divReservas.innerHTML = '';
+        let total = 0;
+        
+        s.forEach(d => {
+            let r = d.data();
+            total += Number(r.valor) || 0;
+            divReservas.innerHTML += `
+            <div class="reserva-item">
+                <div><strong>${r.nome}</strong> reservou <em>${r.itemNome}</em> (${r.tipo})<br>R$ ${r.valor.toFixed(2)}</div>
+                ${isAdmin ? `<button class="btn-danger" style="flex:0; padding:5px 10px;" onclick="cancelarReserva('${d.id}', '${r.itemId}', '${r.itemNome}')" title="Cancelar e devolver estoque">❌</button>` : ''}
+            </div>`;
+        });
+        document.getElementById('totalArrecadado').innerText = `R$ ${total.toFixed(2).replace('.', ',')}`;
+    });
+
+    db.collection('config').doc('visual').onSnapshot(d => {
+        if (d.exists) {
+            document.getElementById('titulo').innerText = d.data().titulo;
+            document.getElementById('mensagem').innerText = d.data().mensagem;
+        }
+    });
+
+    function exportarCSV() {
+        db.collection('reservas').get().then(s => {
+            let csv = 'Data,Nome,Item,Tipo,Valor\n';
+            s.forEach(d => {
+                let r = d.data();
+                let data = r.data ? r.data.toDate().toLocaleDateString('pt-BR') : '';
+                csv += `"${data}","${r.nome}","${r.itemNome}","${r.tipo}","${r.valor}"\n`;
+            });
+            let a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+            a.download = "reservas.csv"; a.click();
+        });
+    }
+</script>
+</body>
 </html>
